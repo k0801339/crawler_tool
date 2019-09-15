@@ -1,7 +1,6 @@
 import requests
 from requests_html import HTML
 from pprint import pprint
-import os
 
 # from multiprocessing import Pool7
 import re
@@ -12,7 +11,7 @@ class SimpleParser():
     '''
     def __init__(self, start_url):
         # setting the parser
-        self.domain = "https://www.ptt.cc"
+        #self.domain = "https://www.ptt.cc"
         self.start_url = start_url
     
     def fetch(self, url):
@@ -58,7 +57,7 @@ class PTTParser(SimpleParser):
     '''
     def __init__(self, start_url):
         super().__init__(start_url)
-        # self.domain = "https://www.ptt.cc"
+        self.domain = "https://www.ptt.cc"
         # self.start_url = start_url
 
     def fetch(self, url):
@@ -134,15 +133,35 @@ class BooksParser(SimpleParser):
     '''
     def __init__(self, start_url):
         super().__init__(start_url)
+        self.domain = "https://search.books.com.tw/"
     
     # def fetch(self, url): 
     # need not override it
 
     def parse_article_entries(self, doc):
         html = HTML(html=doc)
-        post_entries = html.find("div.r-ent")
+        post_entries = html.find("div.cntlisearch08 form ul.searchbook li.item")
         return post_entries
 
+    def parse_article_meta(self, entry):
+        meta = {
+            'title': entry.find("h3 a[rel='mid_name']", first=True).text,
+            # 可以以後修改為 author list，避免某些書籍有譯者or插畫家等問題
+            'author': entry.find("a[rel='go_author']")[0].text,
+            'publish': entry.find("a[rel='mid_publish']", first=True).text,
+            #'date':  entry.text,
+            'discount': entry.find("span.price strong b", first=True).text,
+            'price': entry.find("span.price strong b")[-1].text,
+            'summary': entry.find("p", first=True).text,
+            'image': entry.find("img.itemcov", first=True).text,
+            'link': "https:" + entry.find("a[rel='mid_image']", first=True).attrs['href']
+
+        }
+        # for data
+        match_date = re.search("[0-9]{4}-[0-9]{2}-[0-9]{2}", entry.text)
+        meta['date'] = match_date.group()
+
+        return meta
 
 # calculate Chinese sentenses' true length in python print function
 widths = [
@@ -173,11 +192,25 @@ def get_width(s):
 
 if __name__ == '__main__':
     
-    start_url = "https://www.ptt.cc/bbs/NBA/index.html"
+    '''
+    Practice mode: use fixed url as temporary use
+    '''
+    start_url = "https://search.books.com.tw/search/query/key/東野圭吾/cat/all"
 
-    pttParser = PTTParser(start_url)
+    booksParser = BooksParser(start_url)
     numPages = 1
 
+    metapage = booksParser.fetch(start_url)
+    entries = booksParser.parse_article_entries(metapage.text)
+
+    for entry in entries:
+        meta = booksParser.parse_article_meta(entry)
+        print("{}\n{} {} {}\n{} {}\n{}\nLink: {}".format(meta['title'], meta['author'], meta['publish'], meta['date'], meta['discount']+"折", meta['price']+'元', 
+            meta['summary'], meta['link']))
+        
+        break
+
+    '''
     meta_data = pttParser.get_pages_meta(start_url, numPages)
     
     for meta in meta_data:
@@ -188,5 +221,6 @@ if __name__ == '__main__':
             pattern = "{:<4}{:<}{}{:^7}{:>13}"
         
         print(pattern.format(meta['push'], meta['title'], padding, meta['date'], meta['author'])) 
+    '''
 
     
